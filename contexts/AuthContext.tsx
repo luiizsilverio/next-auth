@@ -1,7 +1,7 @@
 import { createContext, ReactNode, useEffect, useState } from "react";
 import Router from 'next/router'
-import { setCookie, parseCookies } from 'nookies'
-import { api } from "../services/api";
+import { setCookie, parseCookies, destroyCookie } from 'nookies'
+import { api } from "../services/apiClient";
 
 type SignInCredentials = {
     email: string       // diego@rocketseat.team
@@ -10,7 +10,8 @@ type SignInCredentials = {
 
 type AuthContextData = {
     user: User
-    signIn(credentials: SignInCredentials): Promise<void>
+    signIn: (credentials: SignInCredentials) => Promise<void>
+    signOut: () => void
     isAuthenticated: boolean        
 }
 
@@ -26,9 +27,35 @@ type User = {
 
 export const AuthContext = createContext({} as AuthContextData)
 
+let authChannel: BroadcastChannel
+
+export function signOut() {
+    destroyCookie(undefined, 'nextauth.token')
+    destroyCookie(undefined, 'nextauth.refreshToken')
+    
+    authChannel.postMessage('signOut') // envia uma mensagem 
+    Router.push('/')
+}
+
 export function AuthProvider({ children }: AuthProviderProps) {
     const [user, setUser] = useState<User>(null)
     const isAuthenticated = !!user
+
+    useEffect(() => {
+        // BroadcastChannel permite comunicação entre as abas do browser
+        // Por ex, se a aplicação estiver aberta em 2 ou mais abas,
+        // se eu fizer logout em uma delas, com o BroadcastChannel 
+        // eu consigo deslogar todas elas automaticamente.
+
+        authChannel = new BroadcastChannel('auth')
+
+        // onMessage fica ouvindo se tem mensagem
+        authChannel.onmessage = (message) => {
+            if (message.data === 'signOut') {
+                signOut()
+            }
+        }
+    }, [])
 
     useEffect(() => {
         // retorna uma lista com todos os cookies
@@ -39,6 +66,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 const { email, permissions, roles } = response.data
 
                 setUser({ email, permissions, roles })
+            })
+            .catch(error => {
+                signOut()
             })
         }
     }, []) // somente uma vez
@@ -73,12 +103,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
             Router.push('/dashboard')  //direciona p/ o dashboard
             
         } catch(err) {
-            console.log(err)
+            console.error(err)
         }
     }
 
     return (
-        <AuthContext.Provider value={{ user, signIn, isAuthenticated }}>
+        <AuthContext.Provider value={{ user, signIn, signOut, isAuthenticated }}>
             {children}
         </AuthContext.Provider>
     )

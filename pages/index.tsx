@@ -1,6 +1,10 @@
+import { GetServerSideProps } from "next"
 import { FormEvent, useContext, useState } from "react"
-import { AuthContext } from "../contexts/AuthContext"
+import { parseCookies } from 'nookies'
+
 import styles from '../styles/Home.module.css'
+import { AuthContext } from "../contexts/AuthContext"
+import { SSRGuest } from "../utils/SSRGuest"
 
 export default function Home() {
   const [email, setEmail] = useState('')
@@ -33,3 +37,30 @@ export default function Home() {
     </form>
   )
 }
+
+export const getServerSideProps = SSRGuest(async(ctx) => {
+  return {
+    props: {} // não envia nada
+  }
+})
+
+/* agora, chama a função SSRGuest
+export const getServerSideProps: GetServerSideProps = async(ctx) => {
+  const cookies = parseCookies(ctx) 
+  //console.log(ctx.req.cookies)
+  
+  // se não existir o cookie, redireciona p/ o dashboard
+  if (cookies['nextauth.token']) {
+    return {
+      redirect: {
+        destination: '/dashboard',
+        permanent: false
+      }
+    }
+  }
+  
+  return {
+    props: {} // não envia nada
+  }
+}
+*/
